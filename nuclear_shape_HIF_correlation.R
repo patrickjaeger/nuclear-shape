@@ -172,31 +172,96 @@ shapiro.test(datl$round)
 shapiro.test(datl$mean)
 
 nuc_cor <- ggplot(datl, aes(round, mean)) +
-  geom_point(aes(color = location), pch = 16, alpha = 0.5, show.legend = FALSE) +
+  geom_point(aes(color = location), pch = 16, alpha = 0.3, show.legend = FALSE) +
   geom_smooth(method = "lm", se = FALSE, color = "darkred") +
   theme_classic() +
   scale_x_continuous(expand = c(0, 0)) + 
   scale_y_continuous(expand = c(0, 0)) + 
   scale_color_manual(values = custom_colors) +
   labs(x = "Nuclear roundness",
-       y = "Nuclear HIF1a") +
-  annotate(geom = "text", x = 0.2, y = 250, cex = 3,
-           label = expression("r=0.48\np<0.0001"))
+       y = "Nuclear HIF1a")
+  # annotate(geom = "text", x = 0.2, y = 250, cex = 3,
+           # label = expression("r=0.48\np<0.0001"))
 nuc_cor
+
+# Correlation: ar~HIF ----
+cor_round_hif <- cor(datl$ar, datl$mean)
+cor.test(datl$ar, datl$mean, method = "pearson")
+shapiro.test(datl$round)
+shapiro.test(datl$mean)
+
+hif_ar_cor <- ggplot(datl, aes(ar, mean)) +
+  geom_point(aes(color = location), pch = 16, alpha = 0.3, show.legend = FALSE) +
+  geom_smooth(formula = mean~749*exp(-0.2*ar), se = FALSE, color = "darkred") +
+  theme_classic() +
+  scale_x_continuous(expand = c(0, 0)) + 
+  scale_y_continuous(expand = c(0, 0)) + 
+  scale_color_manual(values = custom_colors) +
+  labs(x = "Nuclear AR",
+       y = "Nuclear HIF1a")
+  # annotate(geom = "text", x = 0.2, y = 250, cex = 3,
+           # label = expression("r=0.48\np<0.0001"))
+hif_ar_cor
+
+## Fit exponential model ----
+### Estimate starting values ----
+tt <- tibble(
+  x = seq(1, 20),
+  y = 8000*(exp(-0.5*x+1))
+)
+plot(tt)
+lines(tt)
+
+### Fit model ----
+hif_model <- nls(mean~I(a*exp(-b*ar)), datl, start = list(a = 4000, b=2), algorithm = "port", lower = c(3000, 0.5))
+hif_model <- nls(mean~I(a*exp(-b*ar+1)), datl, start = list(a = 4000, b=2))
+hif_model
+exp_hif <- tibble(
+  ar = seq(0,25, 0.2),
+  mean = predict(hif_model, newdata = data.frame(ar = ar))
+)
+plot(c(0,25), c(0, 3000), type = "n")
+lines(exp_hif)
+
+ggplot(datl, aes(ar, mean)) +
+  geom_point(aes(color = location), pch = 16, alpha = 0.3, show.legend = FALSE) +
+  # geom_line(data = exp_hif, aes(ar, mean), color = "darkred") +
+  geom_smooth(method = "lm") +
+  theme_classic() +
+  scale_x_continuous(expand = c(0, 0)) + 
+  scale_y_continuous(expand = c(0, 0)) + 
+  scale_color_manual(values = custom_colors) +
+  labs(x = "Nuclear AR",
+       y = "Nuclear HIF1a")
+
+## lm fit with log transform
+hif_lm <- lm(log(mean)~ar, data = datl)
+lm_coef <- coef(hif_lm)
+
+
+dat_hif <- tibble(
+  ar = seq(0,25, 0.2),
+  # mean = predict(hif_lm, newdata = data.frame(ar = ar))
+  mean = exp(lm_coef[1])*exp(lm_coef[2]*ar)
+)
+plot(c(0,25), c(0, 3000), type = "n")
+lines(dat_hif)
 
 
 # Combine plots ----
 fig <- ggarrange(ggarrange(nuc_count, nuc_size, nrow = 1), 
+                 ggarrange(nuc_round, nuc_ar, nrow = 1), 
                  ggarrange(nuc_hif_conc, nuc_hif_distr, nrow = 1),
-                 ggarrange(nuc_round, nuc_cor, nrow = 1), 
-                 nrow = 3)
+                 nuc_cor,
+                 nrow = 4)
+
 annotate_figure(fig, 
                 top = text_grob("Proximal vs. distal overview", 
                                 face = "bold", 
                                 size = 16))
 
-# ggsave("results/nuclear_shape_vs_HIF_overview.svg",
-       # width = 350, height = 400, dpi = 72, units = "px")
+# ggsave("results/221218_nuclear_shape_vs_HIF_overview.svg",
+       # width = 350, height = 600, dpi = 72, units = "px")
 
 
 # Export results ----
@@ -205,4 +270,27 @@ dat_final <- select(datl, id, donor, location, cell, area, mean, round) %>%
 
 # write_csv(dat_final, "results/nuclear_shape_vs_HIF_results.csv")
 
+
+# Summmary ----
+datl %>% 
+  group_by(id, donor, image) %>% 
+  summarise(mean = mean(mean)) %>% print(n = nrow(.))
+
+
+ggplot(datl, aes(round, 
+                 group = location,
+                 color = location)) +
+  geom_density(show.legend = FALSE) +
+  # geom_histogram(aes(y=..density..), position = "identity", 
+  # alpha = 0.5, show.legend = FALSE) +
+  # geom_density(fill = NA, show.legend = FALSE) +
+  theme_classic() +
+  scale_color_manual(values = custom_colors) +
+  scale_fill_manual(values = custom_colors) +
+  labs(x = "Nuclear HIF1a",
+       y = "Count [n]")
+
+select(datl, -id, -donor, -location, -image, -cell) %>% 
+  cor() %>% 
+  corrplot::corrplot()
 
