@@ -10,32 +10,35 @@ rename_nested_columns <- function(.df) {
 }
 
 # Import and join data ----
-# data_path <- "data/1_straight/"
-data_path <- "data/2_background_corrected/"
+data_path <- "data/3_batch_of_221218/csv/"
+
 
 dat <-
-  tibble(
-    files = list.files(data_path, full.names = T, pattern = ".csv"),
-    data = map(files, read_csv)) %>%
-  mutate(files = basename(files)) %>%
+tibble(files = list.files(data_path, full.names = T, pattern = ".csv"),
+       data = map(files, read_csv)) %>%
+  mutate(files = basename(files),
+         files = str_remove(files, ".csv")) %>%
   separate(col = files,
-           into = c("donor_and_location", "staining_1", "staining_2"),
+           into = c("donor", "location", "image"),
            sep = '_', extra = 'drop') %>% 
-  mutate(donor = parse_number(donor_and_location),
-         location = str_sub(donor_and_location, -4L, -1L) %>% tolower(),
-         staining_2 = str_remove(staining_2, ".csv")) %>% 
-  select(-donor_and_location) %>% 
-  relocate(donor, location, staining_1, staining_2, data) %>% 
-  mutate(data = map(data, rename_nested_columns)) %>% 
+  mutate(donor = parse_number(donor),
+         location = tolower(location),
+         image = ifelse(is.na(image), "0", image) %>% parse_number()) %>% 
+  relocate(donor, location, image) %>% 
+  mutate(data = map(data, rename_nested_columns),
+         location = case_when(location == "prox" ~ "proximal",
+                              location == "dist" ~ "distal",
+                              TRUE ~ location)) %>% 
   rowid_to_column("id")
-  
-dat  
+
+unique(dat$location)
+dat
 summary(unnest(dat, data))
 
 
 # Plots ----
 datl <- unnest(dat, data) %>% 
-  mutate(location = as_factor(location) %>% fct_relevel(c("prox", "dist"))) %>% 
+  mutate(location = as_factor(location) %>% fct_relevel(c("proximal", "distal"))) %>% 
   mutate(mean = abs(mean))
 custom_colors <- c("black", "dodgerblue")
 
@@ -54,6 +57,7 @@ nuc_size
 
 
 ### Aspect ratio ----
+#### Boxplot ----
 nuc_ar <- ggplot(datl, aes(location, ar, 
                       group = location,
                       color = location)) +
@@ -63,6 +67,17 @@ nuc_ar <- ggplot(datl, aes(location, ar,
   labs(x = "Donor site",
        y = "Nuclear aspect ratio")
 nuc_ar
+
+#### Density ----
+nuc_ar_dens <- ggplot(datl, aes(ar, 
+                      group = location,
+                      color = location)) +
+  geom_density(show.legend = FALSE) +
+  theme_classic() +
+  scale_color_manual(values = custom_colors) +
+  labs(x = "Nuclear aspect ratio",
+       y = "Density")
+nuc_ar_dens
 
 
 ### Roundness ----
@@ -95,6 +110,7 @@ nuc_count
 
 ## Nucleus signal ----
 ### HIF1a concentration ----
+#### Boxplot ----
 nuc_hif_conc <- ggplot(datl, aes(location, mean, 
                       group = location,
                       color = location)) +
@@ -106,6 +122,16 @@ nuc_hif_conc <- ggplot(datl, aes(location, mean,
        y = "Nuclear HIF1a")
 nuc_hif_conc
 
+#### Density ----
+nuc_hif_conc_dens <- ggplot(datl, aes(mean, 
+                      group = location,
+                      color = location)) +
+  geom_density(show.legend = FALSE) +
+  theme_classic() +
+  scale_color_manual(values = custom_colors) +
+  labs(x = "Nuclear HIF1a",
+       y = "Density")
+nuc_hif_conc_dens
 
 ### HIF1a amount ----
 # This is not corrected for background signal; it's trash.
