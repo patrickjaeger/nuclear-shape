@@ -288,7 +288,7 @@ annotate_figure(fig,
                                 face = "bold", 
                                 size = 16))
 
-# ggsave("results/221218_nuclear_shape_vs_HIF_overview.svg",
+# ggsave("results/221228_nuclear_shape_vs_HIF_overview.svg",
        # width = 350, height = 600, dpi = 72, units = "px")
 
 
@@ -315,10 +315,37 @@ ggplot(datl, aes(round,
   theme_classic() +
   scale_color_manual(values = custom_colors) +
   scale_fill_manual(values = custom_colors) +
-  labs(x = "Nuclear HIF1a",
+  labs(x = "Roundness",
        y = "Count [n]")
 
 select(datl, -id, -donor, -location, -image, -cell) %>% 
   cor() %>% 
   corrplot::corrplot()
 
+
+# HIF~AR normalized -------------------------------------------------------
+
+dat2 <- datl %>% mutate(hif_score = mean/ar)
+
+ggplot(dat2, aes(hif_score, 
+                 group = location,
+                 color = location)) +
+  geom_density(show.legend = FALSE) +
+  # geom_histogram(aes(y=..density..), position = "identity", 
+  # alpha = 0.5, show.legend = FALSE) +
+  # geom_density(fill = NA, show.legend = FALSE) +
+  theme_classic() +
+  scale_color_manual(values = custom_colors) +
+  scale_fill_manual(values = custom_colors) +
+  labs(x = "Roundness",
+       y = "Count [n]")
+
+
+ggplot(dat2, aes(location, hif_score, 
+                      group = location,
+                      color = location)) +
+  geom_boxplot(show.legend = FALSE) +
+  theme_classic() +
+  scale_color_manual(values = custom_colors) +
+  labs(x = "Donor site",
+       y = "the fuck is this?")
