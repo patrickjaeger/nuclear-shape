@@ -122,6 +122,31 @@ nuc_hif_conc <- ggplot(datl, aes(location, mean,
        y = "Nuclear HIF1a")
 nuc_hif_conc
 
+##### Sample-wise ----
+nuc_hif_conc_samplewise <- ggplot(datl, aes(location, mean, 
+                      group = id,
+                      color = location)) +
+  # geom_boxplot(show.legend = FALSE) +
+  stat_summary(geom = "point",
+               position = position_jitter(width = 0.15),
+               show.legend = FALSE,
+               alpha = 0.5,
+               pch = 16) +
+  stat_summary(aes(group = location), 
+               geom = "hpline",
+               # fun = "median",
+               show.legend = FALSE,
+               # alpha = 0.7,
+               width = 0.35) +
+  theme_classic() +
+  scale_color_manual(values = custom_colors) +
+  # scale_y_continuous(limits = y_limits) +
+  labs(x = "Donor site",
+       # y = bquote("Nuclear HIF1a [F"[nucleus]-"F"[background]~"]"))
+       y = "Nuclear HIF1a")
+nuc_hif_conc_samplewise
+
+
 #### Density ----
 nuc_hif_conc_dens <- ggplot(datl, aes(mean, 
                       group = location,
@@ -187,12 +212,13 @@ nuc_cor
 # Correlation: ar~HIF ----
 cor_round_hif <- cor(datl$ar, datl$mean)
 cor.test(datl$ar, datl$mean, method = "pearson")
-shapiro.test(datl$round)
-shapiro.test(datl$mean)
+# shapiro.test(datl$round)
+# shapiro.test(datl$mean)
 
 hif_ar_cor <- ggplot(datl, aes(ar, mean)) +
   geom_point(aes(color = location), pch = 16, alpha = 0.3, show.legend = FALSE) +
-  geom_smooth(formula = mean~749*exp(-0.2*ar), se = FALSE, color = "darkred") +
+  # geom_smooth(formula = mean~749*exp(-0.2*ar), se = FALSE, color = "darkred") +
+  # geom_smooth(method = "lm", se = FALSE, color = "darkred") +
   theme_classic() +
   scale_x_continuous(expand = c(0, 0)) + 
   scale_y_continuous(expand = c(0, 0)) + 
@@ -203,55 +229,57 @@ hif_ar_cor <- ggplot(datl, aes(ar, mean)) +
            # label = expression("r=0.48\np<0.0001"))
 hif_ar_cor
 
+
 ## Fit exponential model ----
 ### Estimate starting values ----
 tt <- tibble(
-  x = seq(1, 20),
-  y = 8000*(exp(-0.5*x+1))
+  x = seq(0, 20),
+  y = 2^(-x+2)
 )
 plot(tt)
 lines(tt)
+abline(v = 1)
+
 
 ### Fit model ----
-hif_model <- nls(mean~I(a*exp(-b*ar)), datl, start = list(a = 4000, b=2), algorithm = "port", lower = c(3000, 0.5))
-hif_model <- nls(mean~I(a*exp(-b*ar+1)), datl, start = list(a = 4000, b=2))
-hif_model
-exp_hif <- tibble(
-  ar = seq(0,25, 0.2),
-  mean = predict(hif_model, newdata = data.frame(ar = ar))
-)
-plot(c(0,25), c(0, 3000), type = "n")
-lines(exp_hif)
+# https://stackoverflow.com/questions/31851936/exponential-curve-fitting-in-r
 
-ggplot(datl, aes(ar, mean)) +
-  geom_point(aes(color = location), pch = 16, alpha = 0.3, show.legend = FALSE) +
-  # geom_line(data = exp_hif, aes(ar, mean), color = "darkred") +
-  geom_smooth(method = "lm") +
-  theme_classic() +
-  scale_x_continuous(expand = c(0, 0)) + 
-  scale_y_continuous(expand = c(0, 0)) + 
-  scale_color_manual(values = custom_colors) +
-  labs(x = "Nuclear AR",
-       y = "Nuclear HIF1a")
+#multiplicative error: we should use lm() on log-transformed data, because the error is constant on that scale
+dat_mod <- select(datl, ar, mean) %>% mutate(log_mean = log(mean))
 
-## lm fit with log transform
-hif_lm <- lm(log(mean)~ar, data = datl)
-lm_coef <- coef(hif_lm)
+hif_model <- lm(log_mean~ar, dat_mod)
+lm_coef <- coef(hif_model)
+lm_coef
+
+# formula with nls: nls(mean ~ a*exp(r*ar))
+# linearized model: log(y) = log(a) + r*t, which is equal to: 
+# Y = β0 + β1 * X, where β0 is our intercept and β1 our slope
+# Therefore: intercept = log(a) & 
+
+plot(dat_mod$ar, dat_mod$mean, col = alpha("black", 0.2))
+
+hif_lm <- lm(dat_mod$log_mean ~ dat_mod$ar)
+hif_lm_coef <- coef(hif_lm)
+hif_lm_coef
 
 
-dat_hif <- tibble(
-  ar = seq(0,25, 0.2),
-  # mean = predict(hif_lm, newdata = data.frame(ar = ar))
-  mean = exp(lm_coef[1])*exp(lm_coef[2]*ar)
-)
-plot(c(0,25), c(0, 3000), type = "n")
-lines(dat_hif)
+lines(dat_mod$ar, exp(hif_lm_coef[1])*exp(hif_lm_coef[2]*dat_mod$ar), 
+      col = "dodgerblue", lwd = 1)
+
+hif_nls <- nls(mean ~ a*exp(r*ar), data = dat_mod, start = list(a = 3000, r = -0.2))
+hif_nls_coef <- coef(hif_nls)
+hif_nls_coef
+
+lines(dat_mod$ar, nls_coef[1]*exp(nls_coef[2]*dat_mod$ar), 
+      col = "darkred", lwd = 1)
+
+# Conclusion: this data has too much noise to fit an exponential model
 
 
 # Combine plots ----
 fig <- ggarrange(ggarrange(nuc_count, nuc_size, nrow = 1), 
                  ggarrange(nuc_round, nuc_ar, nrow = 1), 
-                 ggarrange(nuc_hif_conc, nuc_hif_distr, nrow = 1),
+                 ggarrange(nuc_hif_conc, nuc_hif_distr, nuc_hif_conc_samplewise, nrow = 1),
                  nuc_cor,
                  nrow = 4)
 
