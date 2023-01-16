@@ -143,6 +143,7 @@ nuc_hif_conc <- ggplot(datl, aes(location, mean,
        y = "Nuclear HIF1a")
 nuc_hif_conc
 
+
 ##### Sample-wise ----
 nuc_hif_conc_samplewise <- ggplot(datl, aes(location, mean, 
                       group = id,
@@ -178,20 +179,6 @@ nuc_hif_conc_dens <- ggplot(datl, aes(mean,
   labs(x = "Nuclear HIF1a",
        y = "Density")
 nuc_hif_conc_dens
-
-### HIF1a amount ----
-# This is not corrected for background signal; it's trash.
-
-# nuc_hif_amount <- ggplot(datl, aes(location, intden, 
-#                       group = location,
-#                       color = location)) +
-#   geom_boxplot(show.legend = FALSE) +
-#   theme_classic() +
-#   scale_color_manual(values = custom_colors) +
-#   # scale_y_continuous(limits = y_limits) +
-#   labs(x = "Donor site",
-#        y = "Nuclear HIF1a amount [Σsignal]")
-# nuc_hif_amount
 
 
 ### HIF1a distribution ----
@@ -230,6 +217,7 @@ nuc_cor <- ggplot(datl, aes(round, mean)) +
            # label = expression("r=0.48\np<0.0001"))
 nuc_cor
 
+
 # Correlation: ar~HIF ----
 cor_round_hif <- cor(datl$ar, datl$mean)
 cor.test(datl$ar, datl$mean, method = "pearson")
@@ -251,52 +239,6 @@ hif_ar_cor <- ggplot(datl, aes(ar, mean)) +
 hif_ar_cor
 
 
-## Fit exponential model ----
-### Estimate starting values ----
-tt <- tibble(
-  x = seq(0, 20),
-  y = 2^(-x+2)
-)
-plot(tt)
-lines(tt)
-abline(v = 1)
-
-
-### Fit model ----
-# https://stackoverflow.com/questions/31851936/exponential-curve-fitting-in-r
-
-#multiplicative error: we should use lm() on log-transformed data, because the error is constant on that scale
-dat_mod <- select(datl, ar, mean) %>% mutate(log_mean = log(mean))
-
-hif_model <- lm(log_mean~ar, dat_mod)
-lm_coef <- coef(hif_model)
-lm_coef
-
-# formula with nls: nls(mean ~ a*exp(r*ar))
-# linearized model: log(y) = log(a) + r*t, which is equal to: 
-# Y = β0 + β1 * X, where β0 is our intercept and β1 our slope
-# Therefore: intercept = log(a) & 
-
-plot(dat_mod$ar, dat_mod$mean, col = alpha("black", 0.2))
-
-hif_lm <- lm(dat_mod$log_mean ~ dat_mod$ar)
-hif_lm_coef <- coef(hif_lm)
-hif_lm_coef
-
-
-lines(dat_mod$ar, exp(hif_lm_coef[1])*exp(hif_lm_coef[2]*dat_mod$ar), 
-      col = "dodgerblue", lwd = 1)
-
-hif_nls <- nls(mean ~ a*exp(r*ar), data = dat_mod, start = list(a = 3000, r = -0.2))
-hif_nls_coef <- coef(hif_nls)
-hif_nls_coef
-
-lines(dat_mod$ar, nls_coef[1]*exp(nls_coef[2]*dat_mod$ar), 
-      col = "darkred", lwd = 1)
-
-# Conclusion: this data has too much noise to fit an exponential model
-
-
 # Combine plots ----
 fig <- ggarrange(ggarrange(nuc_count, nuc_size, nrow = 1), 
                  ggarrange(nuc_round, nuc_ar, nrow = 1), 
@@ -313,60 +255,5 @@ annotate_figure(fig,
        # width = 350, height = 600, dpi = 72, units = "px")
 
 
-# Export results ----
-dat_final <- select(datl, id, donor, location, cell, area, mean, round) %>% 
-  rename(image_id = id, nuclear_size = area, nuclear_hif = mean, nuclear_roundness = round)
-
-# write_csv(dat_final, "results/nuclear_shape_vs_HIF_results.csv")
 
 
-# Summmary ----
-datl %>% 
-  group_by(id, donor, image) %>% 
-  summarise(mean = mean(mean)) %>% print(n = nrow(.))
-
-
-ggplot(datl, aes(round, 
-                 group = location,
-                 color = location)) +
-  geom_density(show.legend = FALSE) +
-  # geom_histogram(aes(y=..density..), position = "identity", 
-  # alpha = 0.5, show.legend = FALSE) +
-  # geom_density(fill = NA, show.legend = FALSE) +
-  theme_classic() +
-  scale_color_manual(values = custom_colors) +
-  scale_fill_manual(values = custom_colors) +
-  labs(x = "Roundness",
-       y = "Count [n]")
-
-select(datl, -id, -donor, -location, -image, -cell) %>% 
-  cor() %>% 
-  corrplot::corrplot()
-
-
-# HIF~AR normalized -------------------------------------------------------
-
-dat2 <- datl %>% mutate(hif_score = mean/ar)
-
-ggplot(dat2, aes(hif_score, 
-                 group = location,
-                 color = location)) +
-  geom_density(show.legend = FALSE) +
-  # geom_histogram(aes(y=..density..), position = "identity", 
-  # alpha = 0.5, show.legend = FALSE) +
-  # geom_density(fill = NA, show.legend = FALSE) +
-  theme_classic() +
-  scale_color_manual(values = custom_colors) +
-  scale_fill_manual(values = custom_colors) +
-  labs(x = "Roundness",
-       y = "Count [n]")
-
-
-ggplot(dat2, aes(location, hif_score, 
-                      group = location,
-                      color = location)) +
-  geom_boxplot(show.legend = FALSE) +
-  theme_classic() +
-  scale_color_manual(values = custom_colors) +
-  labs(x = "Donor site",
-       y = "the fuck is this?")
