@@ -36,6 +36,27 @@ dat
 summary(unnest(dat, data))
 
 
+## Data export for Greta ----
+### by cell
+# write_csv(datl, "results/230116_prox_vs_dist_by_cell.csv")
+
+## by sample
+dat_sample <- datl %>% 
+  group_by(across(1:4)) %>% 
+  summarise_all(mean) %>% 
+  select(-cell)
+dat_sample
+
+# add cell count
+cell_count <- datl %>% 
+  group_by(across(1:4)) %>% 
+  summarise(cell_count = n())
+cell_count
+
+dat_sample_with_count <- full_join(dat_sample, cell_count)
+
+# write_csv(dat_sample_with_count, "results/230116_prox_vs_dist_by_sample.csv")
+
 # Plots ----
 datl <- unnest(dat, data) %>% 
   mutate(location = as_factor(location) %>% fct_relevel(c("proximal", "distal"))) %>% 
