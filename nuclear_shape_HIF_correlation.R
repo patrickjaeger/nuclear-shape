@@ -36,9 +36,18 @@ dat
 summary(unnest(dat, data))
 
 
+# Unnest data ----
+datl <- unnest(dat, data) %>% 
+  mutate(location = as_factor(location) %>% fct_relevel(c("proximal", "distal"))) %>% 
+  mutate(mean = abs(mean))
+
+
 ## Data export for Greta ----
-### by cell
-# write_csv(datl, "results/230116_prox_vs_dist_by_cell.csv")
+### by cell - split by location
+dat_prox <- filter(datl, location == "proximal")
+dat_dist <- filter(datl, location == "distal")
+# write_csv(dat_prox, "results/230116_prox_vs_dist_by_cell_proximal.csv")
+# write_csv(dat_dist, "results/230116_prox_vs_dist_by_cell_distal.csv")
 
 ## by sample
 dat_sample <- datl %>% 
@@ -53,14 +62,18 @@ cell_count <- datl %>%
   summarise(cell_count = n())
 cell_count
 
-dat_sample_with_count <- full_join(dat_sample, cell_count)
+dat_sample_with_count <- full_join(dat_sample, cell_count) %>%
+  arrange(location, donor) %>% 
+  rename(mean_hif_signal = mean,
+         aspect_ratio = ar,
+         roundness = round)
+dat_sample_with_count
+ 
 
 # write_csv(dat_sample_with_count, "results/230116_prox_vs_dist_by_sample.csv")
 
+
 # Plots ----
-datl <- unnest(dat, data) %>% 
-  mutate(location = as_factor(location) %>% fct_relevel(c("proximal", "distal"))) %>% 
-  mutate(mean = abs(mean))
 custom_colors <- c("black", "dodgerblue")
 
 
